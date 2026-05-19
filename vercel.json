@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    { "path": "/api/cron/screen?slot=premarket", "schedule": "0 13 * * 1-5" },
+    { "path": "/api/cron/screen?slot=midday",    "schedule": "30 16 * * 1-5" },
+    { "path": "/api/cron/screen?slot=close",     "schedule": "0 21 * * 1-5" },
+    { "path": "/api/cron/report",                "schedule": "30 22 * * 1-5" }
+  ],
+  "functions": {
+    "apps/web/app/api/cron/screen/route.ts": { "maxDuration": 300 },
+    "apps/web/app/api/cron/report/route.ts": { "maxDuration": 120 }
+  }
+}

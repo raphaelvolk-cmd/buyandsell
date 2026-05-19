@@ -1,0 +1,27 @@
+* {
+  box-sizing: border-box;
+}
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.bg-slate-50 { background: #f8fafc; }
+.text-slate-900 { color: #0f172a; }
+.antialiased { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+.max-w-6xl { max-width: 72rem; }
+.px-4 { padding-left: 1rem; padding-right: 1rem; }
+.py-6 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+h1 { font-size: 1.75rem; font-weight: 600; margin: 0 0 0.5rem; }
+h2 { font-size: 1.25rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+.card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.muted { color: #64748b; font-size: 0.875rem; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.875rem; }
+th { background: #f1f5f9; font-weight: 600; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+.pill.green { background: #dcfce7; color: #15803d; }
+.pill.blue { background: #dbeafe; color: #1d4ed8; }
+.pill.red { background: #fee2e2; color: #b91c1c; }
+.pill.slate { background: #f1f5f9; color: #475569; }

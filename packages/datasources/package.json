@@ -1,0 +1,27 @@
+{
+  "name": "@bst/datasources",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./yahoo": "./src/yahoo.ts",
+    "./alphavantage": "./src/alphavantage.ts",
+    "./google-sheet": "./src/google-sheet.ts",
+    "./cnn-fear-greed": "./src/cnn-fear-greed.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8",
+    "@types/node": "^22.10.0"
+  },
+  "dependencies": {
+    "@bst/indicators": "workspace:*"
+  }
+}

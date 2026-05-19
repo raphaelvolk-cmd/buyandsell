@@ -1,0 +1,22 @@
+{
+  "name": "@bst/email",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.16",
+    "@bst/claude": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.17",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8",
+    "@types/node": "^22.10.0"
+  }
+}
