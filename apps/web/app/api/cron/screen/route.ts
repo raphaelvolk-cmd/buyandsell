@@ -51,13 +51,15 @@ async function handleCron(req: Request) {
       batches: totalBatches,
     });
 
-    // Fan out: dispatch ALL batches in parallel via after(). Each worker is an
-    // independent function invocation with its own 60s budget. Master's after()
-    // keeps the response open while the dispatches complete.
+    // Fan out: dispatch all batches with a 1.5s stagger so we don't slam
+    // Yahoo/Anthropic with 100 simultaneous fetches. Each worker is its own
+    // function invocation with its own 60s budget.
     const runId = r.runId;
+    const totalTickers = r.totalTickers;
     after(async () => {
       const dispatches: Promise<unknown>[] = [];
-      for (let offset = 0; offset < r.totalTickers; offset += BATCH_SIZE) {
+      let i = 0;
+      for (let offset = 0; offset < totalTickers; offset += BATCH_SIZE) {
         dispatches.push(
           fetch(
             `${base}/api/cron/screen/batch?run_id=${runId}&user_id=${userId}&offset=${offset}`,
@@ -68,7 +70,16 @@ async function handleCron(req: Request) {
             },
           ).catch(() => null),
         );
+        i++;
+        // Stagger: wait 1.5s before sending the next dispatch
+        if (offset + BATCH_SIZE < totalTickers) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
       }
+      void i;
+      // Keep after() alive until all dispatch responses come back (each worker
+      // returns ~15-25s after dispatch). Total after() lifetime: ~15s stagger
+      // + ~25s longest batch = ~40s, comfortably within Hobby's 60s budget.
       await Promise.allSettled(dispatches);
     });
   }
