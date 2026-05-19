@@ -87,8 +87,8 @@ export interface BatchResult {
   fear_greed?: FearGreed;
 }
 
-const CLAUDE_CONCURRENCY = 3;
-const FETCH_CONCURRENCY = 4;
+const CLAUDE_CONCURRENCY = 5;
+const FETCH_CONCURRENCY = 12;
 
 export async function runScreening(
   supabase: SupabaseClient,
