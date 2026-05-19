@@ -18,12 +18,21 @@ die ausgefuellten Werte aus **"Was ich am Ende von dir brauche"** (unten).
    - **Region:** `Central EU (Frankfurt)` — wichtig fuer DSGVO
    - **Pricing plan:** Free reicht fuer MVP (500 MB DB)
 4. Warte 2 Min, bis das Projekt provisioniert ist.
-5. Unter **Project Settings → API** kopieren:
-   - `Project URL` (z.B. `https://xxxxxxx.supabase.co`)
-   - `anon public` Key
-   - `service_role` Key (haelt dich aus — das ist der Admin-Key)
-6. Unter **Project Settings → General** kopieren:
-   - `Reference ID` (8 Zeichen, z.B. `abcdwxyz`) — brauchen wir fuer die CLI
+5. Im linken Menue **Settings (Zahnrad-Icon) → API** oeffnen und drei Werte kopieren:
+   - **`Project URL`** — die HTTPS-Adresse deines Supabase-Projekts (z.B. `https://abcdwxyz.supabase.co`).
+     *Wozu:* Frontend + Server-Code reden mit dieser URL.
+   - **`anon` / `public` Key** — langer JWT-String, beginnt mit `eyJ...`.
+     *Wozu:* Sicher fuer den Browser. Nur RLS-konforme Zugriffe moeglich.
+   - **`service_role` Key** — auch ein JWT, daneben steht **"secret"** oder ein Augen-Icon zum Aufdecken.
+     *Wozu:* Vollzugriff auf die DB unter Umgehung von RLS — **NIE im Browser oder in Git verwenden**.
+     Nur Server-Routes (z.B. Cron-Endpoint) und die Vercel-Env nutzen ihn.
+
+   > Falls Supabase bei dir die neue UI mit *"Publishable / Secret Keys"* statt *"anon / service_role"* zeigt: das sind die gleichen Konzepte unter neuem Namen — `publishable` = `anon`, `secret` = `service_role`.
+
+6. Im linken Menue **Settings → General** kopieren:
+   - **`Reference ID`** (auch *Project ref* genannt, 16-20 Zeichen alphanumerisch).
+     *Wozu:* `supabase link --project-ref XYZ` braucht das, damit die CLI die Migrations
+     zum richtigen Projekt schickt.
 
 > **Auth-Setup ist Out-of-the-Box** — Magic-Link via Email funktioniert ohne weitere Konfiguration.
 > Supabase versendet die Login-Links automatisch ueber ihren eingebauten SMTP-Server (Free).
