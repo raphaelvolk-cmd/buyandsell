@@ -12,9 +12,20 @@ export default async function DashboardPage() {
     return (
       <div className="card">
         <h1>Buy &amp; Sell Tool</h1>
-        <p>Please <a href="/login">sign in with Microsoft Entra</a> to continue.</p>
+        <p>Please <a href="/login">sign in</a> to continue.</p>
       </div>
     );
+  }
+
+  // First-sign-in: seed default ticker universe (S&P-Top-60 + DAX-40) if empty.
+  const { count: tickerCount } = await supabase
+    .from("tickers")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+  let seeded = 0;
+  if (tickerCount === 0) {
+    const { data: seedResult } = await supabase.rpc("seed_default_universe");
+    if (typeof seedResult === "number") seeded = seedResult;
   }
 
   const { data: lastRun } = await supabase
@@ -36,6 +47,13 @@ export default async function DashboardPage() {
     <div>
       <h1>Dashboard</h1>
       <p className="muted">Signed in as {user.email}</p>
+
+      {seeded > 0 && (
+        <section className="card" style={{ background: "#dcfce7", borderColor: "#16a34a" }}>
+          <strong>Welcome.</strong> Seeded {seeded} default tickers (S&amp;P-Top-60 + DAX-40).
+          Manage them under <a href="/universe">Universe</a>.
+        </section>
+      )}
 
       <section className="card">
         <h2>Last screening run</h2>
