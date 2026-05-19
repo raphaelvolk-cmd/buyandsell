@@ -2,7 +2,10 @@
 
 Multi-source stock screening with Claude-API evaluation, manual portfolio tracking, and email alerts. Cloud-PWA on Next.js + Supabase + Vercel Cron.
 
-See `../CLAUDE\ 2026-04\ Claude\ Code/buy-sell-tool` plan reference: `~/.claude/plans/neues-buy-und-sell-reflective-nygaard.md`.
+**Auth:** Magic-Link via email (Supabase built-in). No OAuth provider setup required.
+
+See `DEPLOYMENT.md` for the step-by-step go-live walkthrough.
+Plan reference: `~/.claude/plans/neues-buy-und-sell-reflective-nygaard.md`.
 
 ## Workspaces
 

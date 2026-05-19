@@ -16,12 +16,18 @@ port = 54323
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "https://*.vercel.app/auth/callback",
+]
+jwt_expiry = 3600
+enable_signup = true
 
-[auth.external.azure]
-enabled = true
-# Set these via `supabase secrets set` or in the dashboard:
-# client_id     = "env(ENTRA_CLIENT_ID)"
-# client_secret = "env(ENTRA_CLIENT_SECRET)"
-# url           = "https://login.microsoftonline.com/<ENTRA_TENANT_ID>/v2.0"
-skip_nonce_check = false
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = false
+max_frequency = "1m0s"
+otp_length = 6
+otp_expiry = 3600
