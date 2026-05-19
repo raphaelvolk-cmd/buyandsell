@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { processBatch, finalizeMasterRun, type BatchOptions } from "@/lib/screening/orchestrator";
 import type { SmtpConfig } from "@bst/email";
@@ -74,21 +74,32 @@ export async function POST(req: Request) {
 
   const result = await processBatch(supabase, opts);
 
-  // Dispatch the next batch (or finalize via the no-tickers branch above).
-  after(async () => {
-    try {
-      await fetch(
-        `${base}/api/cron/screen/batch?run_id=${runId}&user_id=${userId}&offset=${offset + BATCH_SIZE}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${secret}` },
-          cache: "no-store",
-        },
-      );
-    } catch {
-      // ignore — next cron run will pick up incomplete state via /api/cron/runs-recover (todo)
+  // Self-finalize check: when ok+failed >= total AND status is still 'running',
+  // mark the run done. The .eq("status","running") guard makes this race-safe
+  // — only one batch will succeed in flipping the status.
+  const { data: post } = await supabase
+    .from("screening_runs")
+    .select("tickers_ok, tickers_failed, tickers_total, started_at")
+    .eq("id", runId)
+    .single();
+  if (post) {
+    const okCount = (post.tickers_ok as number | null) ?? 0;
+    const failCount = (post.tickers_failed as number | null) ?? 0;
+    const totalCount = (post.tickers_total as number | null) ?? 0;
+    if (okCount + failCount >= totalCount) {
+      const startedIso = post.started_at as string;
+      const durationMs = Date.now() - new Date(startedIso).getTime();
+      await supabase
+        .from("screening_runs")
+        .update({
+          status: "done",
+          finished_at: new Date().toISOString(),
+          duration_ms: durationMs,
+        })
+        .eq("id", runId)
+        .eq("status", "running");
     }
-  });
+  }
 
   return NextResponse.json({ run_id: runId, offset, batch: result });
 }

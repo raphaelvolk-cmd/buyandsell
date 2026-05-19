@@ -42,25 +42,34 @@ async function handleCron(req: Request) {
       summaries.push({ user_id: userId, error: r.error });
       continue;
     }
+    const totalBatches = Math.ceil(r.totalTickers / BATCH_SIZE);
     summaries.push({
       user_id: userId,
       run_id: r.runId,
       total_tickers: r.totalTickers,
       fear_greed: r.fearGreed,
-      batches: Math.ceil(r.totalTickers / BATCH_SIZE),
+      batches: totalBatches,
     });
 
-    // Dispatch first batch via after() so the master response can return immediately.
+    // Fan out: dispatch ALL batches in parallel via after(). Each worker is an
+    // independent function invocation with its own 60s budget. Master's after()
+    // keeps the response open while the dispatches complete.
+    const runId = r.runId;
     after(async () => {
-      try {
-        await fetch(`${base}/api/cron/screen/batch?run_id=${r.runId}&user_id=${userId}&offset=0`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${secret}` },
-          cache: "no-store",
-        });
-      } catch {
-        // best-effort dispatch; worker handles its own retries via the next-batch chain
+      const dispatches: Promise<unknown>[] = [];
+      for (let offset = 0; offset < r.totalTickers; offset += BATCH_SIZE) {
+        dispatches.push(
+          fetch(
+            `${base}/api/cron/screen/batch?run_id=${runId}&user_id=${userId}&offset=${offset}`,
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${secret}` },
+              cache: "no-store",
+            },
+          ).catch(() => null),
+        );
       }
+      await Promise.allSettled(dispatches);
     });
   }
 
