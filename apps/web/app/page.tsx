@@ -28,6 +28,22 @@ export default async function DashboardPage() {
     if (typeof seedResult === "number") seeded = seedResult;
   }
 
+  // First-sign-in: add the signed-in email as a default recipient for daily/alert emails.
+  if (user.email) {
+    await supabase
+      .from("email_recipients")
+      .upsert(
+        {
+          user_id: user.id,
+          email: user.email,
+          receives_strong_buy: true,
+          receives_daily_report: true,
+          active: true,
+        },
+        { onConflict: "user_id,email", ignoreDuplicates: true },
+      );
+  }
+
   const { data: lastRun } = await supabase
     .from("screening_runs")
     .select("*")
