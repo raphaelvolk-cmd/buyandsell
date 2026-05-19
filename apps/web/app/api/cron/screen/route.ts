@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { runScreening } from "@/lib/screening/orchestrator";
-import type { SmtpConfig } from "@bst/email";
+import { createMasterRun } from "@/lib/screening/orchestrator";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 60;
+
+const BATCH_SIZE = 10;
 
 export async function GET(req: Request) {
   return handleCron(req);
@@ -21,52 +22,47 @@ async function handleCron(req: Request) {
   }
   const url = new URL(req.url);
   const slot = url.searchParams.get("slot") ?? "manual";
+  const base = process.env.NEXT_PUBLIC_APP_BASE_URL ?? `${url.protocol}//${url.host}`;
 
   const supabase = createSupabaseServiceRoleClient();
-  const { data: users, error } = await supabase
+
+  // Pick all users that have at least one active ticker
+  const { data: userRows, error } = await supabase
     .from("tickers")
     .select("user_id")
     .eq("active", true);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  const userIds = Array.from(new Set((users ?? []).map((u) => u.user_id as string)));
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const userIds = Array.from(new Set((userRows ?? []).map((u) => u.user_id as string)));
 
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? "";
-  if (!anthropicApiKey) {
-    return NextResponse.json({ error: "missing_anthropic_api_key" }, { status: 500 });
-  }
-  const fallbackSmtp = resolveFallbackSmtp();
-  const dashboardBaseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL;
+  const summaries: Array<Record<string, unknown>> = [];
 
-  const summaries = [];
   for (const userId of userIds) {
-    const opts: Parameters<typeof runScreening>[1] = {
-      userId,
-      slot,
-      anthropicApiKey,
-    };
-    if (fallbackSmtp) opts.fallbackSmtp = fallbackSmtp;
-    if (dashboardBaseUrl) opts.dashboardBaseUrl = dashboardBaseUrl;
-    const summary = await runScreening(supabase, opts);
-    summaries.push(summary);
+    const r = await createMasterRun(supabase, userId, slot);
+    if ("error" in r) {
+      summaries.push({ user_id: userId, error: r.error });
+      continue;
+    }
+    summaries.push({
+      user_id: userId,
+      run_id: r.runId,
+      total_tickers: r.totalTickers,
+      fear_greed: r.fearGreed,
+      batches: Math.ceil(r.totalTickers / BATCH_SIZE),
+    });
+
+    // Dispatch first batch via after() so the master response can return immediately.
+    after(async () => {
+      try {
+        await fetch(`${base}/api/cron/screen/batch?run_id=${r.runId}&user_id=${userId}&offset=0`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${secret}` },
+          cache: "no-store",
+        });
+      } catch {
+        // best-effort dispatch; worker handles its own retries via the next-batch chain
+      }
+    });
   }
 
-  return NextResponse.json({ slot, user_count: userIds.length, summaries });
-}
-
-function resolveFallbackSmtp(): SmtpConfig | undefined {
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT;
-  const fromAddr = process.env.SMTP_FROM_ADDRESS;
-  if (!host || !port || !fromAddr) return undefined;
-  const cfg: SmtpConfig = {
-    host,
-    port: Number(port),
-    from_address: fromAddr,
-  };
-  if (process.env.SMTP_USER) cfg.user = process.env.SMTP_USER;
-  if (process.env.SMTP_PASSWORD) cfg.password = process.env.SMTP_PASSWORD;
-  if (process.env.SMTP_FROM_NAME) cfg.from_name = process.env.SMTP_FROM_NAME;
-  return cfg;
+  return NextResponse.json({ slot, dispatched: summaries.length, summaries });
 }
