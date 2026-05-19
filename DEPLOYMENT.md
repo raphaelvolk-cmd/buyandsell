@@ -122,14 +122,13 @@ die Werte offen und du tippst sie ein, sobald die CLI fragt.
 
 ## Was ich danach automatisch mache
 
-1. `supabase login` (kurzes Browser-OAuth — einmalig, du klickst)
-2. `supabase link --project-ref $SUPABASE_PROJECT_REF`
-3. `supabase db push` — fuehrt **alle 3 Migrations + RPC** auf deiner Frankfurt-DB aus
-4. `supabase secrets set` fuer ANTHROPIC_API_KEY + SMTP_*
-5. **GitHub:** `git remote add origin $GITHUB_REPO_URL` + `git push -u origin master`
-6. **Vercel:** `vercel login` (einmal Browser, dann nie wieder), `vercel link`, alle Env-Vars setzen, `vercel --prod`
-7. Smoke-Test: einmal die Cron-URL mit `curl` aufrufen, schauen ob ein Screening-Run in der DB landet
-8. Du loggst dich mit Magic-Link ein und siehst dein erstes Dashboard.
+1. **Migrations anwenden** — entweder
+   - **schnell (Web):** du oeffnest [SQL Editor in Supabase](https://supabase.com/dashboard/project/_/sql/new), pastest den Inhalt von [`supabase/apply_all.sql`](supabase/apply_all.sql) (alle 3 Migrations konsolidiert, 337 Zeilen) und klickst **Run**. Erledigt in 30 Sek, kein CLI-Login noetig.
+   - **vollstaendig (CLI):** ich mache `supabase login` (du klickst Browser-Auth einmal), `supabase link --project-ref $REF`, `supabase db push`. Du tippst DB-Password an einer Stelle.
+2. **GitHub:** `git remote add origin $REPO_URL` + `git push -u origin master`
+3. **Vercel:** `vercel login` (einmal Browser-Click), `vercel link`, alle Env-Vars setzen (du tippst sensitive Werte), `vercel --prod`
+4. Smoke-Test: einmal die Cron-URL mit `curl` + `CRON_SECRET` aufrufen, in Supabase pruefen ob ein Screening-Run angelegt wurde
+5. Du loggst dich mit Magic-Link auf deine Email ein und siehst dein erstes Dashboard
 
 Geplante Live-Zeit: **~15 Min** nachdem du mir die Werte gibst.
 
