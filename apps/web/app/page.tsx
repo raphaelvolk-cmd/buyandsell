@@ -1,6 +1,22 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
+
+async function runScreeningNow() {
+  "use server";
+  const base = process.env.NEXT_PUBLIC_APP_BASE_URL;
+  const cron = process.env.CRON_SECRET;
+  if (!base || !cron) return;
+  await fetch(`${base}/api/cron/screen?slot=manual`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cron}` },
+    cache: "no-store",
+  });
+  revalidatePath("/");
+  revalidatePath("/runs");
+  revalidatePath("/watchlist");
+}
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
@@ -128,12 +144,34 @@ export default async function DashboardPage() {
       </section>
 
       <section className="card">
+        <h2>Run a screening now</h2>
+        <p className="muted">Triggers the full pipeline (Yahoo fetch + indicators + Claude evaluation + DB inserts). ~2-3 min.</p>
+        <form action={runScreeningNow}>
+          <button
+            type="submit"
+            style={{
+              background: "#0f172a",
+              color: "white",
+              border: 0,
+              borderRadius: 6,
+              padding: "10px 16px",
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            Run screening now
+          </button>
+        </form>
+      </section>
+
+      <section className="card">
         <h2>Navigation</h2>
         <ul>
-          <li><a href="/portfolio">Portfolio (manual positions)</a></li>
-          <li><a href="/watchlist">Watchlist signals</a></li>
-          <li><a href="/universe">Universe (tickers)</a></li>
-          <li><a href="/settings">Settings (recipients, SMTP, API keys)</a></li>
+          <li><a href="/portfolio">Portfolio</a> — manual positions + hold/sell/add advice</li>
+          <li><a href="/watchlist">Watchlist</a> — current buy/sell signals with Claude thesis</li>
+          <li><a href="/universe">Universe</a> — manage which tickers get screened</li>
+          <li><a href="/runs">Runs</a> — screening history + token usage</li>
+          <li><a href="/settings">Settings</a> — recipients, SMTP, sign out</li>
         </ul>
       </section>
     </div>

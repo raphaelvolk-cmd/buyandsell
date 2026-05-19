@@ -12,3 +12,5 @@ coverage
 .vercel
 .supabase
 *.tsbuildinfo
+
+.vercel
