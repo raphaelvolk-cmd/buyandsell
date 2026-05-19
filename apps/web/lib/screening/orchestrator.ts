@@ -79,6 +79,7 @@ export interface BatchOptions {
 export interface BatchResult {
   processed: number;
   evaluated: number;
+  skipped: number;
   failed: number;
   strong_buy_emails_sent: number;
   input_tokens: number;
@@ -541,6 +542,7 @@ export async function processBatch(
   const result: BatchResult = {
     processed: opts.tickerSymbols.length,
     evaluated: 0,
+    skipped: 0,
     failed: 0,
     strong_buy_emails_sent: 0,
     input_tokens: 0,
@@ -622,6 +624,8 @@ export async function processBatch(
   const toEvaluate = prepared.filter((p) =>
     shouldEvaluate({ tech: p.indicators, scores: p.scores, inPortfolio: p.portfolioPosition !== undefined }).passes,
   );
+  // Tickers that made it through indicators but were filtered out before Claude.
+  result.skipped = prepared.length - toEvaluate.length;
 
   // 4. Claude evaluations
   const evaluator = createEvaluator({ apiKey: opts.anthropicApiKey });
@@ -786,7 +790,9 @@ export async function processBatch(
     }
   }
 
-  // 7. Increment master run stats (read-modify-write; single-user low race risk)
+  // 7. Increment master run stats (read-modify-write; single-user low race risk).
+  // tickers_ok absorbs both Claude-evaluated AND prefilter-skipped so the
+  // completion guard (ok + failed >= total) fires correctly.
   const { data: current } = await supabase
     .from("screening_runs")
     .select("tickers_ok, tickers_failed, claude_input_tokens, claude_output_tokens, claude_cached_tokens")
@@ -796,7 +802,7 @@ export async function processBatch(
     await supabase
       .from("screening_runs")
       .update({
-        tickers_ok: (current.tickers_ok ?? 0) + result.evaluated,
+        tickers_ok: (current.tickers_ok ?? 0) + result.evaluated + result.skipped,
         tickers_failed: (current.tickers_failed ?? 0) + result.failed,
         claude_input_tokens: (current.claude_input_tokens ?? 0) + result.input_tokens,
         claude_output_tokens: (current.claude_output_tokens ?? 0) + result.output_tokens,
