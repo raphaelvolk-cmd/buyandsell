@@ -15,9 +15,7 @@ export default function LoginPage() {
     setErrorMsg("");
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) {
       setStatus("error");
@@ -28,49 +26,56 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="card">
-      <h1>Sign in</h1>
-      <p>Enter your email — we&apos;ll send you a one-click sign-in link.</p>
-      <form onSubmit={handleSend} style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          disabled={status === "sending" || status === "sent"}
-          style={{
-            flex: 1,
-            padding: "10px 12px",
-            border: "1px solid #cbd5e1",
-            borderRadius: 6,
-            fontSize: 14,
-          }}
-        />
-        <button
-          type="submit"
-          disabled={status === "sending" || status === "sent"}
-          style={{
-            background: status === "sent" ? "#16a34a" : "#0f172a",
-            color: "white",
-            border: 0,
-            borderRadius: 6,
-            padding: "10px 16px",
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          {status === "sending" ? "Sending…" : status === "sent" ? "Sent ✓" : "Send link"}
-        </button>
-      </form>
-      {status === "sent" && (
-        <p style={{ marginTop: 12, color: "#15803d" }}>
-          Check your inbox at <strong>{email}</strong>. The link expires in 1 hour.
+    <div style={{ maxWidth: 440, margin: "60px auto" }}>
+      <div className="card">
+        <h1 style={{ marginBottom: 6 }}>Anmelden</h1>
+        <p className="muted" style={{ fontSize: "0.88rem", marginBottom: 16 }}>
+          Trage deine Email ein — du bekommst einen Magic-Link zum Einloggen.
         </p>
-      )}
-      {status === "error" && (
-        <p style={{ marginTop: 12, color: "#dc2626" }}>Error: {errorMsg}</p>
-      )}
+        <form onSubmit={handleSend} className="form-grid">
+          <div>
+            <label>Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              disabled={status === "sending" || status === "sent"}
+            />
+          </div>
+          <button
+            type="submit"
+            className="primary"
+            disabled={status === "sending" || status === "sent"}
+          >
+            {status === "sending"
+              ? "Sende…"
+              : status === "sent"
+                ? "Gesendet ✓"
+                : "Magic-Link senden"}
+          </button>
+        </form>
+        {status === "sent" && (
+          <div className="banner success" style={{ marginTop: 16, marginBottom: 0 }}>
+            Schau in deine Inbox bei <strong>{email}</strong>. Der Link ist 1h gültig.
+          </div>
+        )}
+        {status === "error" && (
+          <div
+            className="banner"
+            style={{
+              marginTop: 16,
+              marginBottom: 0,
+              background: "var(--red-bg)",
+              borderColor: "rgba(239, 68, 68, 0.3)",
+              color: "var(--red)",
+            }}
+          >
+            Fehler: {errorMsg}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,15 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import Link from "next/link";
+import { WatchlistTable, type EvaluationRow } from "@/components/watchlist-table";
 
 export const dynamic = "force-dynamic";
-
-function pill(action: string) {
-  if (action === "STRONG_BUY") return "green";
-  if (action === "BUY") return "green";
-  if (action === "ADD") return "blue";
-  if (action === "SELL" || action === "STRONG_SELL") return "red";
-  return "slate";
-}
 
 export default async function WatchlistPage() {
   const supabase = await createSupabaseServerClient();
@@ -19,85 +11,80 @@ export default async function WatchlistPage() {
   if (!user) {
     return (
       <div className="card">
-        <p>Please <a href="/login">sign in</a>.</p>
+        <p>
+          Bitte <a href="/login">anmelden</a>.
+        </p>
       </div>
     );
   }
 
-  // Latest evaluation per symbol from the most recent run for the user.
-  const { data: latestRun } = await supabase
+  const { data: lastRun } = await supabase
     .from("screening_runs")
-    .select("id")
+    .select("id, started_at, fear_greed_value, fear_greed_label")
     .eq("user_id", user.id)
     .eq("status", "done")
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  const { data: evals } = latestRun
-    ? await supabase
-        .from("evaluations")
-        .select("*")
-        .eq("run_id", latestRun.id)
-        .order("score_total", { ascending: false })
-    : { data: null };
-
-  const buys = (evals ?? []).filter((e) => e.signal === "STRONG_BUY" || e.signal === "BUY");
-  const sells = (evals ?? []).filter((e) => e.signal === "SELL" || e.signal === "STRONG_SELL");
+  let rows: EvaluationRow[] = [];
+  if (lastRun) {
+    const { data: evals } = await supabase
+      .from("evaluations")
+      .select(
+        "id,symbol,current_price,signal,conviction,score_total,score_technical,score_fundamental,score_sentiment,rsi,macd,macd_signal,bb_position,sma50,sma200,atr,fib_support,fib_resistance,target_price,stop_loss,thesis,risks,catalysts",
+      )
+      .eq("run_id", lastRun.id)
+      .order("score_total", { ascending: false });
+    if (evals) {
+      rows = evals.map((e) => ({
+        id: e.id,
+        symbol: e.symbol,
+        current_price: Number(e.current_price),
+        signal: e.signal,
+        conviction: Number(e.conviction ?? 0),
+        score_total: Number(e.score_total ?? 0),
+        score_technical: Number(e.score_technical ?? 0),
+        score_fundamental: Number(e.score_fundamental ?? 0),
+        score_sentiment: Number(e.score_sentiment ?? 0),
+        rsi: e.rsi != null ? Number(e.rsi) : null,
+        macd: e.macd != null ? Number(e.macd) : null,
+        macd_signal: e.macd_signal != null ? Number(e.macd_signal) : null,
+        bb_position: e.bb_position != null ? Number(e.bb_position) : null,
+        sma50: e.sma50 != null ? Number(e.sma50) : null,
+        sma200: e.sma200 != null ? Number(e.sma200) : null,
+        atr: e.atr != null ? Number(e.atr) : null,
+        fib_support: e.fib_support != null ? Number(e.fib_support) : null,
+        fib_resistance: e.fib_resistance != null ? Number(e.fib_resistance) : null,
+        target_price: e.target_price != null ? Number(e.target_price) : null,
+        stop_loss: e.stop_loss != null ? Number(e.stop_loss) : null,
+        thesis: e.thesis,
+        risks: e.risks,
+        catalysts: e.catalysts,
+      }));
+    }
+  }
 
   return (
     <div>
-      <p><Link href="/">← Back to dashboard</Link></p>
       <h1>Watchlist</h1>
+      <p className="subtitle">
+        Alle Bewertungen aus dem letzten erfolgreichen Run
+        {lastRun &&
+          ` · ${new Date(lastRun.started_at).toLocaleString("de-DE")} · F&G ${lastRun.fear_greed_value} (${lastRun.fear_greed_label})`}
+        . Klicke eine Zeile für Details.
+      </p>
 
-      <section className="card">
-        <h2>Buy signals ({buys.length})</h2>
-        {buys.length > 0 ? (
-          <table>
-            <thead><tr><th>Symbol</th><th>Price</th><th>Signal</th><th>Conviction</th><th>Score</th><th>Target</th><th>Stop</th><th>RSI</th><th>Thesis</th></tr></thead>
-            <tbody>
-              {buys.map((e) => (
-                <tr key={e.id}>
-                  <td><strong>{e.symbol}</strong></td>
-                  <td>{e.current_price?.toFixed(2)}</td>
-                  <td><span className={`pill ${pill(e.signal)}`}>{e.signal?.replace("_", " ")}</span></td>
-                  <td>{e.conviction ? (Number(e.conviction) * 100).toFixed(0) + "%" : "—"}</td>
-                  <td>{e.score_total?.toFixed(2)}</td>
-                  <td>{e.target_price?.toFixed(2) ?? "—"}</td>
-                  <td>{e.stop_loss?.toFixed(2) ?? "—"}</td>
-                  <td>{e.rsi?.toFixed(1) ?? "—"}</td>
-                  <td style={{ maxWidth: 360, fontSize: "0.8rem" }}>{e.thesis?.slice(0, 200) ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="muted">No buy signals yet.</p>
-        )}
-      </section>
-
-      <section className="card">
-        <h2>Sell signals ({sells.length})</h2>
-        {sells.length > 0 ? (
-          <table>
-            <thead><tr><th>Symbol</th><th>Price</th><th>Signal</th><th>Conviction</th><th>RSI</th><th>Thesis</th></tr></thead>
-            <tbody>
-              {sells.map((e) => (
-                <tr key={e.id}>
-                  <td><strong>{e.symbol}</strong></td>
-                  <td>{e.current_price?.toFixed(2)}</td>
-                  <td><span className={`pill ${pill(e.signal)}`}>{e.signal?.replace("_", " ")}</span></td>
-                  <td>{e.conviction ? (Number(e.conviction) * 100).toFixed(0) + "%" : "—"}</td>
-                  <td>{e.rsi?.toFixed(1) ?? "—"}</td>
-                  <td style={{ maxWidth: 360, fontSize: "0.8rem" }}>{e.thesis?.slice(0, 200) ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="muted">No sell signals yet.</p>
-        )}
-      </section>
+      {rows.length === 0 ? (
+        <div className="card">
+          <div className="empty">
+            <div className="big-icon">📭</div>
+            Noch keine Bewertungen. Starte ein Screening vom <a href="/">Dashboard</a>.
+          </div>
+        </div>
+      ) : (
+        <WatchlistTable rows={rows} />
+      )}
     </div>
   );
 }

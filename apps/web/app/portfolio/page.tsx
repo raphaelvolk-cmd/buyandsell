@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import Link from "next/link";
+import { SignalBadge } from "@/components/signal-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +12,12 @@ async function addPosition(formData: FormData) {
   const currency = ((formData.get("currency") as string) || "USD").trim().toUpperCase();
   const boughtAtRaw = (formData.get("bought_at") as string)?.trim();
   const notes = (formData.get("notes") as string)?.trim() || null;
-  if (!symbol || !Number.isFinite(shares) || shares <= 0 || !Number.isFinite(cost) || cost < 0) return;
+  if (!symbol || !Number.isFinite(shares) || shares <= 0 || !Number.isFinite(cost) || cost < 0)
+    return;
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return;
   await supabase.from("portfolio_positions").insert({
     user_id: user.id,
@@ -32,7 +35,9 @@ async function deletePosition(formData: FormData) {
   "use server";
   const id = formData.get("id") as string;
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return;
   await supabase.from("portfolio_positions").delete().eq("id", id).eq("user_id", user.id);
   revalidatePath("/portfolio");
@@ -40,9 +45,17 @@ async function deletePosition(formData: FormData) {
 
 export default async function PortfolioPage() {
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
-    return <div className="card"><p>Please <a href="/login">sign in</a>.</p></div>;
+    return (
+      <div className="card">
+        <p>
+          Bitte <a href="/login">anmelden</a>.
+        </p>
+      </div>
+    );
   }
   const { data: positions } = await supabase
     .from("portfolio_positions")
@@ -50,62 +63,130 @@ export default async function PortfolioPage() {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  // Latest portfolio recommendations to overlay
   const { data: portfolioRecs } = await supabase
     .from("recommendations")
     .select("*")
     .eq("user_id", user.id)
     .eq("context", "portfolio")
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(100);
 
-  const recBySymbol = new Map<string, { action: string; rationale: string | null; target_price: number | null; stop_loss: number | null }>();
+  const recBySymbol = new Map<
+    string,
+    {
+      action: string;
+      rationale: string | null;
+      target_price: number | null;
+      stop_loss: number | null;
+    }
+  >();
   for (const r of portfolioRecs ?? []) {
     if (!recBySymbol.has(r.symbol)) {
-      recBySymbol.set(r.symbol, { action: r.action, rationale: r.rationale, target_price: r.target_price, stop_loss: r.stop_loss });
+      recBySymbol.set(r.symbol, {
+        action: r.action,
+        rationale: r.rationale,
+        target_price: r.target_price,
+        stop_loss: r.stop_loss,
+      });
     }
   }
 
   return (
     <div>
-      <p><Link href="/">← Back to dashboard</Link></p>
       <h1>Portfolio</h1>
+      <p className="subtitle">
+        Manuelle Positionen. Bei jedem Screening-Run wird pro Position eine HOLD/SELL/ADD
+        Empfehlung berechnet.
+      </p>
 
-      <section className="card">
-        <h2>Add position</h2>
-        <form action={addPosition} style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8, alignItems: "end" }}>
-          <label>Symbol<input name="symbol" required placeholder="AAPL" style={inputStyle} /></label>
-          <label>Shares<input name="shares" type="number" min="0" step="0.0001" required style={inputStyle} /></label>
-          <label>Cost basis<input name="cost_basis" type="number" min="0" step="0.0001" required style={inputStyle} /></label>
-          <label>Currency<input name="currency" defaultValue="USD" style={inputStyle} /></label>
-          <label>Bought<input name="bought_at" type="date" style={inputStyle} /></label>
-          <button type="submit" style={btnStyle}>Add</button>
+      <div className="card">
+        <h2>Position hinzufügen</h2>
+        <form action={addPosition}>
+          <div className="form-row">
+            <label>
+              Symbol
+              <input name="symbol" required placeholder="AAPL" />
+            </label>
+            <label>
+              Stückzahl
+              <input name="shares" type="number" min="0" step="0.0001" required placeholder="10" />
+            </label>
+            <label>
+              Einstandskurs
+              <input
+                name="cost_basis"
+                type="number"
+                min="0"
+                step="0.0001"
+                required
+                placeholder="180.50"
+              />
+            </label>
+            <label>
+              Währung
+              <input name="currency" defaultValue="USD" />
+            </label>
+            <label>
+              Kaufdatum
+              <input name="bought_at" type="date" />
+            </label>
+            <button type="submit" className="primary">
+              Hinzufügen
+            </button>
+          </div>
         </form>
-        <p className="muted" style={{ marginTop: 8 }}>Notes can be added later by editing the row directly in Supabase (UI in v2).</p>
-      </section>
+      </div>
 
-      <section className="card">
-        <h2>Positions ({positions?.length ?? 0})</h2>
+      <div className="card" style={{ padding: 0 }}>
+        <div style={{ padding: "16px 20px 8px" }}>
+          <h2>Positionen ({positions?.length ?? 0})</h2>
+        </div>
         {positions && positions.length > 0 ? (
           <table>
-            <thead><tr><th>Symbol</th><th>Shares</th><th>Cost</th><th>Currency</th><th>Bought</th><th>Latest action</th><th>Target</th><th>Stop</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th className="num">Stück</th>
+                <th className="num">Einstand</th>
+                <th>Währung</th>
+                <th>Kaufdatum</th>
+                <th>Letzte Aktion</th>
+                <th className="num">Target</th>
+                <th className="num">Stop</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
               {positions.map((p) => {
                 const rec = recBySymbol.get(p.symbol);
                 return (
                   <tr key={p.id}>
-                    <td><strong>{p.symbol}</strong></td>
-                    <td>{Number(p.shares).toFixed(4)}</td>
-                    <td>{Number(p.cost_basis).toFixed(2)}</td>
+                    <td className="symbol-cell">
+                      <strong>{p.symbol}</strong>
+                    </td>
+                    <td className="num">{Number(p.shares).toFixed(4)}</td>
+                    <td className="num">{Number(p.cost_basis).toFixed(2)}</td>
                     <td>{p.currency}</td>
-                    <td>{p.bought_at ?? "—"}</td>
-                    <td>{rec ? <span className={`pill ${actionPill(rec.action)}`}>{rec.action}</span> : <span className="pill slate">no run yet</span>}</td>
-                    <td>{rec?.target_price?.toFixed(2) ?? "—"}</td>
-                    <td>{rec?.stop_loss?.toFixed(2) ?? "—"}</td>
+                    <td className="muted">{p.bought_at ?? "—"}</td>
+                    <td>
+                      {rec ? (
+                        <SignalBadge signal={rec.action} />
+                      ) : (
+                        <span className="pill slate">noch kein Run</span>
+                      )}
+                    </td>
+                    <td className="num">
+                      {rec?.target_price != null ? Number(rec.target_price).toFixed(2) : "—"}
+                    </td>
+                    <td className="num">
+                      {rec?.stop_loss != null ? Number(rec.stop_loss).toFixed(2) : "—"}
+                    </td>
                     <td>
                       <form action={deletePosition}>
                         <input type="hidden" name="id" value={p.id} />
-                        <button type="submit" style={{ ...btnStyle, background: "#fee2e2", color: "#b91c1c" }}>Delete</button>
+                        <button type="submit" className="danger small">
+                          Löschen
+                        </button>
                       </form>
                     </td>
                   </tr>
@@ -114,19 +195,12 @@ export default async function PortfolioPage() {
             </tbody>
           </table>
         ) : (
-          <p className="muted">No positions yet. Add one above to start tracking.</p>
+          <div className="empty">
+            <div className="big-icon">💼</div>
+            Noch keine Positionen. Lege oben deine erste Position an.
+          </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }
-
-function actionPill(action: string): string {
-  if (action === "ADD") return "blue";
-  if (action === "SELL") return "red";
-  if (action === "HOLD") return "slate";
-  return "green";
-}
-
-const inputStyle = { padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 14, width: "100%" };
-const btnStyle = { background: "#0f172a", color: "white", border: 0, borderRadius: 6, padding: "8px 14px", fontSize: 14, cursor: "pointer", height: 36 };
