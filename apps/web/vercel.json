@@ -5,8 +5,8 @@
     { "path": "/api/cron/report",            "schedule": "30 22 * * 1-5" }
   ],
   "functions": {
-    "apps/web/app/api/cron/screen/route.ts": { "maxDuration": 60 },
-    "apps/web/app/api/cron/screen/batch/route.ts": { "maxDuration": 60 },
-    "apps/web/app/api/cron/report/route.ts": { "maxDuration": 60 }
+    "app/api/cron/screen/route.ts": { "maxDuration": 60 },
+    "app/api/cron/screen/batch/route.ts": { "maxDuration": 60 },
+    "app/api/cron/report/route.ts": { "maxDuration": 60 }
   }
 }
