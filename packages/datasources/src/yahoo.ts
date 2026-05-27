@@ -3,6 +3,8 @@ import type { DataSourceResult, TickerQuote } from "./types.js";
 
 const CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart";
 const QUOTE_BASE = "https://query1.finance.yahoo.com/v10/finance/quoteSummary";
+const FC_BASE = "https://fc.yahoo.com";
+const CRUMB_URL = "https://query1.finance.yahoo.com/v1/test/getcrumb";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36";
 
@@ -12,12 +14,115 @@ export interface YahooFetchOptions {
   signal?: AbortSignal;
 }
 
+// ─── Crumb + cookie caching ─────────────────────────────────────────────────
+// Yahoo's quoteSummary endpoint requires a cookie+crumb pair since 2024.
+// We cache them per function instance (and refresh on 401).
+
+interface YahooSession {
+  cookie: string;
+  crumb: string;
+}
+
+let cachedSession: YahooSession | null = null;
+let pendingSession: Promise<YahooSession | null> | null = null;
+
+function parseSetCookie(setCookieHeaders: string[]): string {
+  // Build a Cookie header value from the cookies Yahoo set on us.
+  // We only need name=value pairs, drop the attributes.
+  const pairs: string[] = [];
+  for (const h of setCookieHeaders) {
+    const first = h.split(";")[0]?.trim();
+    if (first) pairs.push(first);
+  }
+  return pairs.join("; ");
+}
+
+async function obtainSession(signal?: AbortSignal): Promise<YahooSession | null> {
+  try {
+    // Step 1: hit fc.yahoo.com to receive Set-Cookie. The endpoint returns 404
+    // but still sets the cookie — that's fine.
+    const init: RequestInit = {
+      headers: { "User-Agent": UA, Accept: "*/*" },
+      redirect: "manual",
+    };
+    if (signal) (init as { signal: AbortSignal }).signal = signal;
+    const r1 = await fetch(FC_BASE, init);
+    const setCookies = r1.headers.getSetCookie?.() ?? r1.headers.get("set-cookie")?.split(/,\s*(?=[^,]+=)/) ?? [];
+    const cookie = parseSetCookie(setCookies);
+    if (!cookie) return null;
+
+    // Step 2: get the crumb token using that cookie.
+    const initCrumb: RequestInit = {
+      headers: { "User-Agent": UA, Accept: "text/plain", Cookie: cookie },
+    };
+    if (signal) (initCrumb as { signal: AbortSignal }).signal = signal;
+    const r2 = await fetch(CRUMB_URL, initCrumb);
+    if (!r2.ok) return null;
+    const crumb = (await r2.text()).trim();
+    if (!crumb) return null;
+    return { cookie, crumb };
+  } catch {
+    return null;
+  }
+}
+
+async function getSession(signal?: AbortSignal): Promise<YahooSession | null> {
+  if (cachedSession) return cachedSession;
+  if (!pendingSession) {
+    pendingSession = (async () => {
+      const s = await obtainSession(signal);
+      if (s) cachedSession = s;
+      return s;
+    })().finally(() => {
+      pendingSession = null;
+    });
+  }
+  return pendingSession;
+}
+
+function invalidateSession() {
+  cachedSession = null;
+}
+
+// ─── Public helpers ─────────────────────────────────────────────────────────
+
 async function fetchJson(url: string, signal?: AbortSignal): Promise<unknown> {
   const init: RequestInit = {
     headers: { "User-Agent": UA, Accept: "application/json" },
   };
   if (signal) (init as { signal: AbortSignal }).signal = signal;
   const res = await fetch(url, init);
+  if (!res.ok) throw new Error(`yahoo http ${res.status}`);
+  return res.json();
+}
+
+async function fetchJsonAuthed(
+  pathWithModules: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  // Tries authed fetch with crumb; on 401 invalidates session and retries once.
+  const attempt = async (sess: YahooSession): Promise<Response> => {
+    const url = `${pathWithModules}${pathWithModules.includes("?") ? "&" : "?"}crumb=${encodeURIComponent(sess.crumb)}`;
+    const init: RequestInit = {
+      headers: {
+        "User-Agent": UA,
+        Accept: "application/json",
+        Cookie: sess.cookie,
+      },
+    };
+    if (signal) (init as { signal: AbortSignal }).signal = signal;
+    return fetch(url, init);
+  };
+
+  let sess = await getSession(signal);
+  if (!sess) throw new Error("yahoo_session_unavailable");
+  let res = await attempt(sess);
+  if (res.status === 401) {
+    invalidateSession();
+    sess = await getSession(signal);
+    if (!sess) throw new Error("yahoo_session_unavailable_retry");
+    res = await attempt(sess);
+  }
   if (!res.ok) throw new Error(`yahoo http ${res.status}`);
   return res.json();
 }
@@ -129,7 +234,7 @@ export async function fetchYahooFundamentals(
   ].join(",");
   const url = `${QUOTE_BASE}/${encodeURIComponent(symbol)}?modules=${modules}`;
   try {
-    const raw = (await fetchJson(url, signal)) as QuoteSummaryResponse;
+    const raw = (await fetchJsonAuthed(url, signal)) as QuoteSummaryResponse;
     const result = raw.quoteSummary?.result?.[0];
     if (!result) {
       return {
