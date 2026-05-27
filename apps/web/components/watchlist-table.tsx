@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { SignalBadge } from "./signal-badge";
+import { SignalBadge, signalFromScore } from "./signal-badge";
 import { ScoreBar } from "./score-bar";
 
 export interface EvaluationRow {
   id: string;
   symbol: string;
   current_price: number;
-  signal: string;
+  signal: string; // Claude signal
   conviction: number;
   score_total: number;
   score_technical: number;
@@ -57,13 +57,13 @@ export function WatchlistTable({ rows }: { rows: EvaluationRow[] }) {
     const lower = search.toLowerCase();
     return rows
       .filter((r) => !lower || r.symbol.toLowerCase().includes(lower))
-      .filter((r) => !signalFilter || r.signal === signalFilter)
+      .filter((r) => !signalFilter || signalFromScore(r.score_total) === signalFilter)
       .sort((a, b) => {
         let av: number | string;
         let bv: number | string;
         if (sortKey === "signal") {
-          av = SIGNAL_RANK[a.signal] ?? 0;
-          bv = SIGNAL_RANK[b.signal] ?? 0;
+          av = SIGNAL_RANK[signalFromScore(a.score_total)] ?? 0;
+          bv = SIGNAL_RANK[signalFromScore(b.score_total)] ?? 0;
         } else if (sortKey === "symbol") {
           av = a.symbol;
           bv = b.symbol;
@@ -161,7 +161,7 @@ export function WatchlistTable({ rows }: { rows: EvaluationRow[] }) {
                     </td>
                     <td className="num">{e.current_price.toFixed(2)}</td>
                     <td>
-                      <SignalBadge signal={e.signal} />
+                      <SignalBadge signal={signalFromScore(e.score_total)} />
                     </td>
                     <td className="num">{(e.conviction * 100).toFixed(0)}%</td>
                     <td>
@@ -302,6 +302,12 @@ export function WatchlistTable({ rows }: { rows: EvaluationRow[] }) {
                             <div className="ai-header">
                               <span>🤖</span>
                               <h4>Claude Analyse</h4>
+                              <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+                                <span className="muted" style={{ fontSize: "0.72rem" }}>
+                                  Claude-Einschätzung:
+                                </span>
+                                <SignalBadge signal={e.signal} />
+                              </span>
                             </div>
                             {e.thesis && <div className="ai-summary">{e.thesis}</div>}
                             <div className="ai-columns">

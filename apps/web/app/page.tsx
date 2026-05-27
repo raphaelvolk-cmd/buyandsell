@@ -2,8 +2,9 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { FearGreedGauge } from "@/components/fear-greed-gauge";
-import { SignalBadge } from "@/components/signal-badge";
+import { SignalBadge, signalFromScore } from "@/components/signal-badge";
 import { ScoreBar } from "@/components/score-bar";
+import { TopPickCard } from "@/components/top-pick-card";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,9 @@ export default async function DashboardPage() {
     signal: string;
     conviction: number;
     score_total: number;
+    score_technical: number;
+    score_fundamental: number;
+    score_sentiment: number;
     target_price: number | null;
     stop_loss: number | null;
     thesis: string | null;
@@ -103,7 +107,9 @@ export default async function DashboardPage() {
   if (lastRun) {
     const { data: evals } = await supabase
       .from("evaluations")
-      .select("symbol,current_price,signal,conviction,score_total,target_price,stop_loss,thesis")
+      .select(
+        "symbol,current_price,signal,conviction,score_total,score_technical,score_fundamental,score_sentiment,target_price,stop_loss,thesis",
+      )
       .eq("run_id", lastRun.id)
       .order("score_total", { ascending: false });
     if (evals) {
@@ -113,15 +119,23 @@ export default async function DashboardPage() {
         signal: e.signal,
         conviction: Number(e.conviction ?? 0),
         score_total: Number(e.score_total ?? 0),
+        score_technical: Number(e.score_technical ?? 0),
+        score_fundamental: Number(e.score_fundamental ?? 0),
+        score_sentiment: Number(e.score_sentiment ?? 0),
         target_price: e.target_price ? Number(e.target_price) : null,
         stop_loss: e.stop_loss ? Number(e.stop_loss) : null,
         thesis: e.thesis,
       }));
-      strongBuys = evals.filter((e) => e.signal === "STRONG_BUY").length;
-      buys = evals.filter((e) => e.signal === "BUY").length;
-      sells = evals.filter((e) => e.signal === "SELL" || e.signal === "STRONG_SELL").length;
+      // Use deterministic score-based signal (matches stock-analyzer logic)
+      strongBuys = evals.filter((e) => Number(e.score_total ?? 0) >= 4.0).length;
+      buys = evals.filter((e) => {
+        const s = Number(e.score_total ?? 0);
+        return s >= 3.5 && s < 4.0;
+      }).length;
+      sells = evals.filter((e) => Number(e.score_total ?? 0) < 2.5).length;
     }
   }
+  const topPick = topEvals[0] && topEvals[0].score_total >= 3.5 ? topEvals[0] : null;
 
   // Portfolio actions from last run
   const { data: portfolioRecs } = lastRun
@@ -250,10 +264,28 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* Top Pick */}
+      {topPick && (
+        <TopPickCard
+          symbol={topPick.symbol}
+          currency="USD"
+          current_price={topPick.current_price}
+          score_total={topPick.score_total}
+          score_technical={topPick.score_technical}
+          score_fundamental={topPick.score_fundamental}
+          score_sentiment={topPick.score_sentiment}
+          thesis={topPick.thesis}
+          target_price={topPick.target_price}
+          stop_loss={topPick.stop_loss}
+          fearGreedValue={lastRun?.fear_greed_value ?? null}
+          fearGreedLabel={lastRun?.fear_greed_label ?? null}
+        />
+      )}
+
       {/* Top signals */}
       <div className="card" style={{ padding: 0 }}>
         <div style={{ padding: "16px 20px 8px" }}>
-          <h2>Top Signale aus dem letzten Run</h2>
+          <h2>Alle Ergebnisse (sortiert nach Score)</h2>
         </div>
         {topEvals.length === 0 ? (
           <div className="empty">
@@ -282,7 +314,7 @@ export default async function DashboardPage() {
                   </td>
                   <td className="num">{e.current_price.toFixed(2)}</td>
                   <td>
-                    <SignalBadge signal={e.signal} />
+                    <SignalBadge signal={signalFromScore(e.score_total)} />
                   </td>
                   <td className="num">{(e.conviction * 100).toFixed(0)}%</td>
                   <td>

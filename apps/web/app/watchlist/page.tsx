@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { WatchlistTable, type EvaluationRow } from "@/components/watchlist-table";
+import { TopPickCard } from "@/components/top-pick-card";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +84,25 @@ export default async function WatchlistPage() {
           </div>
         </div>
       ) : (
-        <WatchlistTable rows={rows} />
+        <>
+          {rows[0] && rows[0].score_total >= 3.5 && (
+            <TopPickCard
+              symbol={rows[0].symbol}
+              currency="USD"
+              current_price={rows[0].current_price}
+              score_total={rows[0].score_total}
+              score_technical={rows[0].score_technical}
+              score_fundamental={rows[0].score_fundamental}
+              score_sentiment={rows[0].score_sentiment}
+              thesis={rows[0].thesis}
+              target_price={rows[0].target_price}
+              stop_loss={rows[0].stop_loss}
+              fearGreedValue={lastRun?.fear_greed_value ?? null}
+              fearGreedLabel={lastRun?.fear_greed_label ?? null}
+            />
+          )}
+          <WatchlistTable rows={rows} />
+        </>
       )}
     </div>
   );
